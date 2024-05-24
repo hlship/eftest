@@ -43,9 +43,8 @@
          [(:function-name *fonts*) scope])
 
        (var? scope)
-       (list
-         [(:clojure-frame *fonts*) (ns-name ns) "/"
-          [(:function-name *fonts*) (:name (meta scope))]]))
+       [(:clojure-frame *fonts*) (ns-name ns) "/"
+        [(:function-name *fonts*) (:name (meta scope))]])
      (when (or file line)
        (list
          " ("
