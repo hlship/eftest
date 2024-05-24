@@ -2,9 +2,9 @@
   "A test reporter with an emphasis on pretty formatting."
   (:require [clojure.test :as test]
             [clojure.data :as data]
-            [io.aviso.ansi :as ansi]
-            [io.aviso.exception :as exception]
-            [io.aviso.repl :as repl]
+            [clj-commons.ansi :as ansi]
+            [clj-commons.format.exceptions :as exception]
+            [clj-commons.pretty.repl :as repl]
             [puget.printer :as puget]
             [fipp.engine :as fipp]
             [eftest.output-capture :as capture]
@@ -13,37 +13,44 @@
 
 (def ^:dynamic *fonts*
   "The ANSI codes to use for reporting on tests."
-  {:exception      ansi/red-font
-   :reset          ansi/reset-font
-   :message        ansi/italic-font
-   :property       ansi/bold-font
-   :source         ansi/italic-font
-   :function-name  ansi/blue-font
-   :clojure-frame  ansi/white-font
-   :java-frame     ansi/reset-font
-   :omitted-frame  ansi/reset-font
-   :pass           ansi/green-font
-   :fail           ansi/red-font
-   :error          ansi/red-font
-   :divider        ansi/yellow-font})
+  {:exception     :red
+   :message       :italic
+   :property      :bold
+   :source        :italic
+   :function-name :blue
+   :clojure-frame :white
+   :java-frame    nil
+   :omitted-frame nil
+   :pass          :green
+   :fail          :red
+   :error         :red
+   :divider       :yellow})
 
 (def ^:dynamic *divider*
   "The divider to use between test failure and error reports."
   "\n")
 
-(defn- testing-scope-str [{:keys [file line]}]
+(defn- testing-scope-str
+  "Produce a composed string identifying the testing path, scope, and file and line if known."
+  [{:keys [file line]}]
   (let [[ns scope] report/*testing-path*]
-    (str
+    (list
      (cond
        (keyword? scope)
-       (str (:clojure-frame *fonts*) (ns-name ns) (:reset *fonts*) " during "
-            (:function-name *fonts*) scope (:reset *fonts*))
+       (list
+         [(:clojure-frame *fonts*) (ns-name ns)]
+         " during "
+         [(:function-name *fonts*) scope])
 
        (var? scope)
-       (str (:clojure-frame *fonts*) (ns-name ns) "/"
-            (:function-name *fonts*) (:name (meta scope)) (:reset *fonts*)))
+       (list
+         [(:clojure-frame *fonts*) (ns-name ns) "/"
+          [(:function-name *fonts*) (:name (meta scope))]]))
      (when (or file line)
-       (str " (" (:source *fonts*) file ":" line (:reset *fonts*) ")")))))
+       (list
+         " ("
+         [(:source *fonts*) file ":" line]
+         ")")))))
 
 (defn- diff-all [expected actuals]
   (map vector actuals (map #(take 2 (data/diff expected %)) actuals)))
@@ -94,12 +101,13 @@
     (print-stacktrace actual)))
 
 (defn- print-output [output]
-  (let [c (:divider *fonts*)
-        r (:reset *fonts*)]
+  (let [divider (:divider *fonts*)]
     (when-not (str/blank? output)
-      (println (str c "---" r " Test output " c "---" r))
-      (println (str/trim-newline output))
-      (println (str c "-------------------" r)))))
+      (ansi/pcompose [divider "---"] " Test output " [divider "---"]
+                     \n
+                     (str/trim-newline output)
+                     \n
+                     [divider "-------------------"]))))
 
 (defmulti report
   "A reporting function compatible with clojure.test. Uses ANSI colors and
@@ -115,7 +123,7 @@
   (test/with-test-out
     (test/inc-report-counter :fail)
     (print *divider*)
-    (println (str (:fail *fonts*) "FAIL" (:reset *fonts*) " in") (testing-scope-str m))
+    (ansi/pcompose [(:fail *fonts*) "FAIL"] " in " (testing-scope-str m))
     (when (seq test/*testing-contexts*) (println (test/testing-contexts-str)))
     (when message (println message))
     (if (and (sequential? expected)
@@ -128,7 +136,7 @@
   (test/with-test-out
     (test/inc-report-counter :error)
     (print *divider*)
-    (println (str (:error *fonts*) "ERROR" (:reset *fonts*) " in") (testing-scope-str m))
+    (ansi/pcompose [(:error *fonts*) "ERROR"] " in " (testing-scope-str m))
     (when (seq test/*testing-contexts*) (println (test/testing-contexts-str)))
     (when message (println message))
     (error-report m)
@@ -143,17 +151,16 @@
 (defmethod report :long-test [{:keys [duration] :as m}]
   (test/with-test-out
     (print *divider*)
-    (println (str (:fail *fonts*) "LONG TEST" (:reset *fonts*) " in") (testing-scope-str m))
+    (ansi/pcompose [(:fail *fonts*) "LONG TEST"] " in " (testing-scope-str m))
     (when duration (println "Test took" (format-interval duration) "seconds to run"))))
 
 (defmethod report :summary [{:keys [test pass fail error duration]}]
   (let [total (+ pass fail error)
         color (if (= pass total) (:pass *fonts*) (:error *fonts*))]
     (test/with-test-out
-      (print *divider*)
-      (println "Ran" test "tests in" (format-interval duration))
-      (println (str color
-                    total " " (pluralize "assertion" total) ", "
-                    fail  " " (pluralize "failure" fail) ", "
-                    error " " (pluralize "error" error) "."
-                    (:reset *fonts*))))))
+      (ansi/pcompose *divider*)
+       "Ran " test " tests in" (format-interval duration)
+      [color
+       total " " (pluralize "assertion" total) ", "
+       fail " " (pluralize "failure" fail) ", "
+       error " " (pluralize "error" error) "."])))

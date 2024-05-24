@@ -3,10 +3,10 @@
   :url "https://github.com/weavejester/eftest"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.7.0"]
+  :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/tools.namespace "1.3.0"]
                  [progrock "0.1.2"]
-                 [io.aviso/pretty "1.3"]
+                 [org.clj-commons/pretty "2.6.0"]
                  [mvxcvi/puget "1.3.4"]]
   :plugins [[lein-eftest "0.6.0"]]
   :aliases {"test-all"
